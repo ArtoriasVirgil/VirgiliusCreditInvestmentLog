@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投資組合分析與複利預測系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Application Structure Plan: Updated allocation module to dynamically weight user-selected items into 3 distinct strategic views based on custom scoring algorithms. Integrated mock insights from specific media sources into the product details modal. -->
+    <style>
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 50vh;
+            max-height: 450px;
+            min-height: 300px;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 40vh;
+                max-height: 350px;
+            }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f5f5f4; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+    </style>
+</head>
+<body class="bg-stone-50 text-slate-800 font-sans antialiased overflow-x-hidden custom-scrollbar">
+
+    <nav class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl mr-2 text-teal-700">&#9854;</span>
+                    <span class="font-bold text-xl tracking-tight text-slate-700">資產配置預測員</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-6">
+                    <button onclick="scrollToSection('overview')" class="text-slate-600 hover:text-teal-600 font-medium transition-colors">商品總覽</button>
+                    <button onclick="scrollToSection('simulator')" class="text-slate-600 hover:text-teal-600 font-medium transition-colors">預測功能</button>
+                    <button onclick="scrollToSection('matrix')" class="text-slate-600 hover:text-teal-600 font-medium transition-colors">風險收益</button>
+                    <button onclick="scrollToSection('allocation')" class="text-teal-600 font-bold border-b-2 border-teal-600">策略配置</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16">
+
+        <header class="text-center py-10 bg-white rounded-2xl shadow-sm border border-stone-200">
+            <h1 class="text-4xl font-extrabold text-slate-800 mb-4 tracking-tight">投資組合分析與複利預測系統</h1>
+            <p class="text-lg text-slate-500 max-w-3xl mx-auto px-4">
+                專業數據建模與資產配置建議。透過下方模擬器輸入您的理財目標，並勾選商品，系統將自動為您推演未來的最佳配置比例。
+            </p>
+        </header>
+
+        <!-- Prediction Section -->
+        <section id="simulator" class="scroll-mt-24">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-slate-800 flex items-center mb-2">
+                    <span class="text-emerald-600 mr-2">&#128200;</span> 複利與利息收益預測
+                </h2>
+                <p class="text-slate-600 text-sm md:text-base leading-relaxed">
+                    請輸入投資參數（單位：萬元）。您在此處勾選的商品，將直接連動並改變最下方「推薦策略配置」區塊中，各個策略的圓餅圖比例計算。
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-1 space-y-6 bg-white p-6 rounded-2xl border border-stone-200 shadow-sm">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">初始投資本金 (萬元)</label>
+                            <input type="number" id="input-capital" value="100" step="10" class="w-full p-3 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">每月目標配息 (萬元)</label>
+                            <input type="number" id="input-target-dividend" value="1" step="0.5" class="w-full p-3 bg-stone-50 border border-stone-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">預測年限：<span id="label-years" class="text-teal-600">5</span> 年</label>
+                            <input type="range" id="input-years" min="1" max="10" value="5" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-teal-600">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-3">包含商品組合 (影響下方配置與上方預測)：</label>
+                        <div class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar p-1" id="simulator-checkboxes"></div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-stone-200 shadow-sm flex flex-col">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                        <div class="p-3 bg-stone-50 rounded-lg border border-stone-100 text-center">
+                            <span class="block text-xs text-slate-500">期末預估本金</span>
+                            <span class="text-lg font-bold text-teal-700" id="res-total-capital">--</span>
+                        </div>
+                        <div class="p-3 bg-stone-50 rounded-lg border border-stone-100 text-center">
+                            <span class="block text-xs text-slate-500">累計領取利息</span>
+                            <span class="text-lg font-bold text-amber-600" id="res-total-div">--</span>
+                        </div>
+                        <div class="p-3 bg-stone-50 rounded-lg border border-stone-100 text-center">
+                            <span class="block text-xs text-slate-500">預估每月配息</span>
+                            <span class="text-lg font-bold text-slate-800" id="res-avg-month">--</span>
+                        </div>
+                        <div class="p-3 bg-stone-50 rounded-lg border border-stone-100 text-center">
+                            <span class="block text-xs text-slate-500">目標達成率</span>
+                            <span class="text-lg font-bold" id="res-target-rate">--</span>
+                        </div>
+                    </div>
+                    <div class="chart-container flex-grow">
+                        <canvas id="predictionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Product Grid -->
+        <section id="overview" class="scroll-mt-24">
+            <h2 class="text-2xl font-bold text-slate-800 flex items-center mb-6">
+                <span class="text-teal-600 mr-2">&#9635;</span> 投資商品詳細資料與媒體觀點
+            </h2>
+            <div id="product-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </section>
+
+        <!-- Risk Matrix -->
+        <section id="matrix" class="scroll-mt-24 bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-stone-200">
+            <h2 class="text-2xl font-bold text-slate-800 mb-6">風險與報酬分佈 (Risk-Return Matrix)</h2>
+            <div class="chart-container">
+                <canvas id="matrixChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Allocation Section (DYNAMICALLY DRIVEN BY CHECKBOXES) -->
+        <section id="allocation" class="scroll-mt-24">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-slate-800 flex items-center mb-2">
+                    <span class="text-rose-500 mr-2">&#9716;</span> 推薦策略配置 (動態連動)
+                </h2>
+                <p class="text-slate-600 text-sm md:text-base leading-relaxed">
+                    下方的三種配置策略，已根據您在**「預測功能」區塊中所勾選的商品清單**，透過演算法自動重新分配最佳的資金權重。
+                </p>
+            </div>
+            
+            <div class="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
+                <div class="flex flex-col sm:flex-row border-b border-stone-200">
+                    <button class="tab-btn flex-1 py-4 px-4 text-center font-bold transition-all border-b-2" data-tab="growth">財富增長型</button>
+                    <button class="tab-btn flex-1 py-4 px-4 text-center font-bold transition-all border-b-2" data-tab="income">穩健現金流型</button>
+                    <button class="tab-btn flex-1 py-4 px-4 text-center font-bold transition-all border-b-2" data-tab="highyield">極高息/對沖型</button>
+                </div>
+                <div class="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-center min-h-[400px]">
+                    <div class="w-full md:w-1/2">
+                        <div class="chart-container !h-[300px]">
+                            <canvas id="pieChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="w-full md:w-1/2" id="allocation-details">
+                        <!-- Content injected via JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal with Media Insights -->
+    <div id="product-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity opacity-0">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden transform scale-95 transition-transform" id="modal-content-wrapper">
+            <div class="flex justify-between items-center p-6 border-b border-stone-100 bg-stone-50">
+                <h3 class="text-2xl font-bold text-slate-800" id="modal-title"></h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-rose-500 text-3xl">&times;</button>
+            </div>
+            <div class="p-6 max-h-[75vh] overflow-y-auto custom-scrollbar" id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(val);
+        const formatNumber = (val) => new Intl.NumberFormat('zh-TW').format(Math.round(val));
+
+        const productColors = {
+            '0050': '#0ea5e9', '0056': '#f59e0b', '00830': '#8b5cf6', 'BM65': '#e11d48',
+            'FC85': '#f43f5e', 'FCI1': '#10b981', 'TW5G': '#14b8a6', 'BO50': '#64748b'
+        };
+
+        const products = [
+            { id: '0050', name: '0050', prefix: 'Fei', category: 'Growth', yield: 3.5, growth: 8.0, matrix: { risk: 7.5, return: 7, size: 25 }, core: '台股前50大市值，半導體佔比極高。', risk: '波動隨台股大盤，受外資動向影響深。',
+              insights: {
+                  cnyes: "台股基本面強勁，AI供應鏈持續發酵，大型權值股仍是外資佈局重點。",
+                  macro: "台灣出口訂單重回擴張區間，製造業週期向上，有利於大盤市值型 ETF 的長期表現。",
+                  gooaye: "無腦市值型的代表。只要你相信台灣經濟不會倒，這就是最底層的防禦兼攻擊武器，不要隨便下車。"
+              }
+            },
+            { id: '0056', name: '0056', prefix: 'Fei', category: 'Income', yield: 6.5, growth: 2.0, matrix: { risk: 5.5, return: 6, size: 15 }, core: '高股息龍頭，具平準金機制。', risk: '成分股若遇景氣反轉，填息時間可能拉長。',
+              insights: {
+                  cnyes: "受惠於資金避險與存股熱潮，投信買盤持續為高息 ETF 的成分股提供下檔支撐。",
+                  macro: "在市場預期利率可能高檔震盪的環境下，高殖利率商品提供資金穩定的避風港。",
+                  gooaye: "領息族的心頭好。重點不是它能不能噴，而是它跌的時候你心裡踏實，可以穩穩拿錢去過生活。"
+              }
+            },
+            { id: '00830', name: '00830', prefix: 'Fei', category: 'Growth', yield: 1.5, growth: 15.0, matrix: { risk: 9.5, return: 9, size: 35 }, core: '追蹤費城半導體指數，網羅全球科技巨頭。', risk: '波段劇烈，對聯準會利率極度敏感。',
+              insights: {
+                  cnyes: "NVIDIA、AMD 等 AI 晶片巨頭財報屢創新高，推升費半指數長線估值。",
+                  macro: "半導體庫存去化進入尾聲，AI 資本支出大增帶動週期性復甦，但需留意高基期風險。",
+                  gooaye: "買費半就是買人類科技的未來。心臟要大顆，MDD（最大回撤）來的時候不要哭，捏住就是你的。"
+              }
+            },
+            { id: 'BM65', name: 'BM65', prefix: 'Mickey', category: 'Income', yield: 9.0, growth: -1.0, matrix: { risk: 6, return: 8.5, size: 15 }, core: '安聯智慧城市，結合科技股與信用債。', risk: '高月配息中含有極大比例本金，淨值可能長期衰退。',
+              insights: {
+                  cnyes: "科技股的成長性搭配債券的收益，試圖在震盪市中提供穩定的現金流。",
+                  macro: "信用利差收斂時表現佳，但若經濟數據顯示衰退風險升溫，高槓桿與動用本金的壓力將浮現。",
+                  gooaye: "你看上它的配息，它看上你的本金。適合『現在』急需大筆現金流的人，不適合存養老金。"
+              }
+            },
+            { id: 'FC85', name: 'FC85', prefix: 'Mickey', category: 'Income', yield: 7.5, growth: 1.0, matrix: { risk: 5, return: 7.5, size: 10 }, core: '摩根全球非投資等級債。', risk: '企業違約率升溫時將面臨劇烈拋售。',
+              insights: {
+                  cnyes: "企業發債成本上升，但目前整體資產負債表仍健康，尋求高息收益的資金持續湧入。",
+                  macro: "關注失業率與景氣衰退指標。非投等債的走勢往往與股市高度正相關，並非純粹的避險資產。",
+                  gooaye: "高收益債就是垃圾債的包裝。多頭的時候爽領息，空頭的時候流動性會瞬間消失，配置比例不要太高。"
+              }
+            },
+            { id: 'FCI1', name: 'FCI1', prefix: 'Mickey', category: 'Income', yield: 5.5, growth: 3.0, matrix: { risk: 3, return: 5.5, size: 8 }, core: '多元平衡收益，股、債、REITs 動態調整。', risk: '極低波動，但大牛市中績效會嚴重落後大盤。',
+              insights: {
+                  cnyes: "透過經理人的動態資產配置，有效抵禦單一市場的黑天鵝事件。",
+                  macro: "在全球總經環境轉向降息或軟著陸的過程中，多元資產能提供最佳的夏普率（風險報酬比）。",
+                  gooaye: "懶人包中的懶人包。漲得慢、跌得少，適合那些看到帳面虧損就會睡不著覺的保守型投資人。"
+              }
+            },
+            { id: 'TW5G', name: '台灣5G', prefix: '宇', category: 'Growth', yield: 4.5, growth: 10.0, matrix: { risk: 8.5, return: 8, size: 28 }, core: '鎖定台灣5G與通訊網路產業鏈。', risk: '集中於電子零組件與半導體，缺乏產業分散。',
+              insights: {
+                  cnyes: "通訊基礎建設與 6G 規格制定帶來長線利多，台灣供應鏈具備不可取代性。",
+                  macro: "需密切觀察消費性電子需求復甦狀況，以及中國市場的動向對相關供應鏈的影響。",
+                  gooaye: "主題型 ETF 就是看趨勢。5G題材雖然不像 AI 這麼狂熱，但實體應用已經落地，當作波段操作可以試試。"
+              }
+            },
+            { id: 'BO50', name: 'BO50', prefix: '宇', category: 'Income', yield: 6.5, growth: 2.5, matrix: { risk: 4, return: 6, size: 12 }, core: 'PIMCO主動式收益增長，全球平衡佈局。', risk: '基金經理人看錯利率路徑時，可能造成淨值與配息雙殺。',
+              insights: {
+                  cnyes: "PIMCO 作為債券天王，在複雜的利率環境中展現了靈活調整存續期的能力。",
+                  macro: "降息循環確立前，主動式債券基金能捕捉到殖利率曲線倒掛所帶來的各類型套利機會。",
+                  gooaye: "買這種就是花錢買經理人的腦袋。對於不想研究總經、只要每個月穩定收錢的人來說，是個省事的選擇。"
+              }
+            }
+        ];
+
+        let predChart, matrixChart, pieChart;
+        let currentTab = 'growth';
+
+        // 動態計算權重引擎
+        function calculateDynamicAllocation(tabId) {
+            const selectedIds = Array.from(document.querySelectorAll('#simulator-checkboxes input:checked')).map(i => i.value);
+            const selectedProds = products.filter(p => selectedIds.includes(p.id));
+            
+            let allocData = [];
+            
+            if (selectedProds.length > 0) {
+                selectedProds.forEach(p => {
+                    let score = 1;
+                    if (tabId === 'growth') {
+                        // 成長型：高度看重資本增長 (growth)，輕微懲罰高風險
+                        score = (p.growth * 2) + (10 - p.matrix.risk);
+                    } else if (tabId === 'income') {
+                        // 穩健型：高度看重殖利率 (yield)，並強烈要求低風險 (防禦)
+                        score = (p.yield * 3) + ((10 - p.matrix.risk) * 2);
+                    } else if (tabId === 'highyield') {
+                        // 極高息：指數級放大高殖利率的權重，幾乎忽略風險
+                        score = Math.pow(p.yield, 3);
+                    }
+                    // 防呆：確保分數為正
+                    score = Math.max(score, 1);
+                    allocData.push({ ...p, tempScore: score });
+                });
+
+                // 正規化為 100%
+                const totalScore = allocData.reduce((sum, p) => sum + p.tempScore, 0);
+                allocData = allocData.map(p => ({
+                    label: `${p.prefix} ${p.name}`,
+                    value: Math.round((p.tempScore / totalScore) * 100),
+                    color: productColors[p.id]
+                })).sort((a, b) => b.value - a.value);
+
+                // 修正小數點進位導致加總不為 100 的問題
+                const totalPct = allocData.reduce((sum, p) => sum + p.value, 0);
+                if (totalPct !== 100 && allocData.length > 0) {
+                    allocData[0].value += (100 - totalPct);
+                }
+            }
+
+            return allocData;
+        }
+
+        function runSimulation() {
+            const capRaw = parseFloat(document.getElementById('input-capital').value) || 0;
+            const targetRaw = parseFloat(document.getElementById('input-target-dividend').value) || 0;
+            const capital = capRaw * 10000;
+            const targetMonthDiv = targetRaw * 10000;
+            const years = parseInt(document.getElementById('input-years').value);
+            
+            const selectedIds = Array.from(document.querySelectorAll('#simulator-checkboxes input:checked')).map(i => i.value);
+            const selectedProds = products.filter(p => selectedIds.includes(p.id));
+
+            if (selectedProds.length === 0) {
+                // 清空數據
+                document.getElementById('res-total-capital').textContent = "NT$ 0";
+                document.getElementById('res-total-div').textContent = "NT$ 0";
+                document.getElementById('res-avg-month').textContent = "NT$ 0";
+                document.getElementById('res-target-rate').textContent = "0%";
+                if(predChart) predChart.destroy();
+                return;
+            }
+
+            const avgYield = selectedProds.reduce((acc, p) => acc + p.yield, 0) / selectedProds.length / 100;
+            const avgGrowth = selectedProds.reduce((acc, p) => acc + p.growth, 0) / selectedProds.length / 100;
+
+            let curCap = capital, cumDiv = 0, labels = ['起始'], capData = [capital], divData = [0];
+            for (let y = 1; y <= years; y++) {
+                cumDiv += (curCap * avgYield);
+                curCap *= (1 + avgGrowth);
+                labels.push(`${y}年後`);
+                capData.push(curCap);
+                divData.push(cumDiv);
+            }
+
+            const lastCap = capData[capData.length - 1];
+            const estMonth = (lastCap * avgYield) / 12;
+
+            document.getElementById('res-total-capital').textContent = formatCurrency(lastCap);
+            document.getElementById('res-total-div').textContent = formatCurrency(cumDiv);
+            document.getElementById('res-avg-month').textContent = formatCurrency(estMonth);
+            const rate = targetMonthDiv > 0 ? Math.round((estMonth / targetMonthDiv) * 100) : 0;
+            document.getElementById('res-target-rate').textContent = `${rate}%`;
+            document.getElementById('res-target-rate').className = `text-lg font-bold ${rate >= 100 ? 'text-emerald-600' : 'text-rose-500'}`;
+
+            const ctx = document.getElementById('predictionChart').getContext('2d');
+            if (predChart) predChart.destroy();
+            predChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets: [
+                    { label: '累計利息', data: divData, borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.4)', fill: true },
+                    { label: '本金價值', data: capData, borderColor: '#0d9488', backgroundColor: 'rgba(13, 148, 136, 0.1)', fill: true }
+                ]},
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: v => formatNumber(v/10000) + '萬' }}}}
+            });
+
+            // 連動更新下方的配置圖表
+            switchTab(currentTab);
+        }
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            const btns = document.querySelectorAll('.tab-btn');
+            btns.forEach(btn => {
+                const isActive = btn.dataset.tab === tabId;
+                btn.className = `tab-btn flex-1 py-4 px-4 text-center font-bold transition-all border-b-2 ${isActive ? 'text-teal-600 border-teal-600 bg-teal-50/30' : 'text-slate-500 border-transparent hover:text-teal-500'}`;
+            });
+
+            const texts = {
+                growth: { title: "財富增長型", desc: "系統已根據您勾選的清單，加重配置於「高資本利得潛力」與「科技成長」屬性的標的，適合長期持有。" },
+                income: { title: "穩健現金流型", desc: "系統已自動抓取您勾選清單中「高殖利率」且「低風險波動」的商品並放大權重，旨在提供平穩現金流。" },
+                highyield: { title: "極高息/對沖型", desc: "演算法已將您勾選的商品依照「絕對殖利率」進行排序，極大化配息收入，但須留意本金侵蝕風險。" }
+            };
+
+            const dynamicData = calculateDynamicAllocation(tabId);
+            
+            let htmlContent = `
+                <h3 class="text-2xl font-bold text-slate-800 mb-2">${texts[tabId].title} (動態計算)</h3>
+                <p class="text-slate-600 mb-6 leading-relaxed">${texts[tabId].desc}</p>
+            `;
+
+            if (dynamicData.length === 0) {
+                htmlContent += `<div class="p-4 bg-rose-50 text-rose-600 rounded-lg font-bold">請先於上方模擬器勾選欲納入的商品！</div>`;
+            } else {
+                htmlContent += `<div class="space-y-3">
+                    ${dynamicData.map(item => `
+                        <div class="flex items-center justify-between p-3 bg-stone-50 rounded-lg border border-stone-100">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 rounded-full mr-3" style="background-color: ${item.color}"></div>
+                                <span class="font-medium text-slate-700">${item.label}</span>
+                            </div>
+                            <span class="font-bold text-teal-700">${item.value}%</span>
+                        </div>
+                    `).join('')}
+                </div>`;
+            }
+
+            document.getElementById('allocation-details').innerHTML = htmlContent;
+
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            if (pieChart) pieChart.destroy();
+            if (dynamicData.length > 0) {
+                pieChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: dynamicData.map(d => d.label),
+                        datasets: [{ data: dynamicData.map(d => d.value), backgroundColor: dynamicData.map(d => d.color), borderWidth: 0 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '70%' }
+                });
+            }
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById('product-grid');
+            const defaultSelected = ['0050', '00830', 'TW5G', '0056', 'FCI1']; 
+            
+            products.forEach(p => {
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-xl p-5 border border-stone-200 shadow-sm hover:border-teal-300 transition-all cursor-pointer flex flex-col group";
+                card.onclick = () => openModal(p);
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-xl font-bold text-slate-800">${p.prefix} ${p.name}</h3>
+                        <span class="text-xs font-bold px-2 py-1 rounded bg-stone-100 text-slate-600">${p.category}</span>
+                    </div>
+                    <p class="text-sm text-slate-500 my-2 line-clamp-2">${p.core}</p>
+                    <div class="mt-auto text-teal-600 text-xs font-bold pt-2 border-t border-stone-100">檢視媒體評析 ➜</div>
+                `;
+                grid.appendChild(card);
+                
+                const isChecked = defaultSelected.includes(p.id) ? 'checked' : '';
+                const cb = document.createElement('label');
+                cb.className = "flex items-center space-x-2 text-sm p-2 bg-stone-50 rounded border border-stone-200 cursor-pointer hover:bg-stone-100";
+                cb.innerHTML = `<input type="checkbox" value="${p.id}" ${isChecked} class="rounded text-teal-600"> <span class="truncate">${p.name}</span>`;
+                
+                // 動態連動事件綁定
+                cb.querySelector('input').addEventListener('change', runSimulation);
+                document.getElementById('simulator-checkboxes').appendChild(cb);
+            });
+            
+            document.getElementById('input-capital').addEventListener('input', runSimulation);
+            document.getElementById('input-target-dividend').addEventListener('input', runSimulation);
+        }
+
+        function openModal(p) {
+            document.getElementById('modal-title').textContent = `${p.prefix} ${p.name} 深度解析`;
+            document.getElementById('modal-body').innerHTML = `
+                <div class="space-y-6">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-stone-50 p-4 rounded-lg border border-stone-200">
+                            <h4 class="font-bold text-teal-700 text-sm mb-1">■ 核心結構</h4>
+                            <p class="text-sm text-slate-600">${p.core}</p>
+                        </div>
+                        <div class="bg-stone-50 p-4 rounded-lg border border-stone-200">
+                            <h4 class="font-bold text-rose-600 text-sm mb-1">■ 風險警示</h4>
+                            <p class="text-sm text-slate-600">${p.risk}</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-bold text-indigo-700 mb-3 flex items-center">
+                            <span class="text-xl mr-2">&#128226;</span> 市場觀點綜合評析
+                        </h4>
+                        <ul class="space-y-3">
+                            <li class="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                                <strong class="text-blue-800 block mb-1 text-sm">【鉅亨網 cnYES】觀點：</strong>
+                                <span class="text-slate-700 text-sm leading-relaxed">${p.insights.cnyes}</span>
+                            </li>
+                            <li class="bg-emerald-50/50 p-4 rounded-lg border border-emerald-100">
+                                <strong class="text-emerald-800 block mb-1 text-sm">【財經M平方 MacroMicro】總經解讀：</strong>
+                                <span class="text-slate-700 text-sm leading-relaxed">${p.insights.macro}</span>
+                            </li>
+                            <li class="bg-stone-100 p-4 rounded-lg border border-stone-200">
+                                <strong class="text-slate-800 block mb-1 text-sm">【股癌 Gooaye】市場白話文：</strong>
+                                <span class="text-slate-700 text-sm leading-relaxed">${p.insights.gooaye}</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            const m = document.getElementById('product-modal');
+            m.classList.remove('hidden'); m.classList.add('flex');
+            setTimeout(() => m.classList.remove('opacity-0'), 10);
+        }
+
+        function closeModal() {
+            const m = document.getElementById('product-modal');
+            m.classList.add('opacity-0');
+            setTimeout(() => m.classList.add('hidden'), 300);
+        }
+
+        function scrollToSection(id) { document.getElementById(id).scrollIntoView({ behavior: 'smooth' }); }
+
+        window.onload = () => {
+            renderGrid();
+            document.getElementById('input-years').oninput = (e) => { document.getElementById('label-years').textContent = e.target.value; runSimulation(); };
+            
+            // 綁定分頁按鈕事件
+            document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+            
+            runSimulation(); // This will also call switchTab('growth') initially
+            
+            new Chart(document.getElementById('matrixChart'), {
+                type: 'bubble',
+                data: { datasets: products.map(p => ({ label: p.name, data: [{ x: p.matrix.risk, y: p.matrix.return, r: p.matrix.size/1.5 }], backgroundColor: productColors[p.id] + '99', borderColor: productColors[p.id], borderWidth: 1 })) },
+                options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { min:2, max:10, title: { display: true, text: '風險指標' } }, y: { min:4, max:10, title: { display: true, text: '預期報酬/殖利率' } } } }
+            });
+        };
+    </script>
+</body>
+</html>
